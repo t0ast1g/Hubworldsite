@@ -1,0 +1,85 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>JumperAI Game Hub</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        'light-blue': '#E6F3FF',
+                        'light-grey': '#F0F0F0',
+                    },
+                },
+            },
+        }
+    </script>
+</head>
+<body class="min-h-screen flex flex-col bg-white text-gray-800">
+    <header class="bg-light-blue p-4 shadow-md">
+        <nav class="container mx-auto flex justify-between items-center">
+            <h1 class="text-2xl font-bold text-gray-800">JumperAI Game Hub</h1>
+            <a href="https://jumperai.org" class="bg-white text-gray-800 px-4 py-2 rounded shadow hover:bg-gray-100 transition-colors">
+                Return to JumperAI
+            </a>
+        </nav>
+    </header>
+
+    <main class="flex-grow container mx-auto p-4">
+        <div class="w-full overflow-hidden rounded-lg shadow-lg">
+            <iframe id="hub-world-frame" src="about:blank" width="1024" height="820" frameborder="0" allowfullscreen class="w-full"></iframe>
+        </div>
+    </main>
+
+    <footer class="bg-light-blue p-4 mt-8">
+        <div class="container mx-auto text-center text-gray-600">
+            <p>&copy; 2024 JumperAI. All rights reserved.</p>
+        </div>
+    </footer>
+
+    <script>
+        const SERVER_URL = 'https://game-progress-server.onrender.com'; // Replace with your actual server URL
+
+        async function fetchAndStoreToken() {
+            try {
+                const response = await fetch(`${SERVER_URL}/api/get-token`, {
+                    method: 'GET',
+                    credentials: 'include', // This is important for including cookies
+                });
+                if (!response.ok) {
+                    throw new Error('Failed to fetch token');
+                }
+                const data = await response.json();
+                localStorage.setItem('token', data.token);
+                return data.token;
+            } catch (error) {
+                console.error('Error fetching token:', error);
+                return null;
+            }
+        }
+
+        function getToken() {
+            return localStorage.getItem('token');
+        }
+
+        function parseToken(token) {
+            const base64Url = token.split('.')[1];
+            const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
+            return JSON.parse(window.atob(base64));
+        }
+
+        window.getToken = getToken;
+        window.parseToken = parseToken;
+
+        // Fetch and store the token when the page loads, then load the iframe
+        document.addEventListener('DOMContentLoaded', async () => {
+            await fetchAndStoreToken();
+            document.getElementById('hub-world-frame').src = 'https://hub-world.onrender.com';
+        });
+    </script>
+</body>
+</html>
