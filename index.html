@@ -46,81 +46,115 @@
         </div>
     </footer>
 
-    <script>
-        const SERVER_URL = 'https://game-progress-server.onrender.com';
+    
+	<script>
+		const SERVER_URL = 'https://game-progress-server.onrender.com';
+		const LOGIN_URL = 'https://jumperai.org/log-in';
 
-        function getToken() {
-            return localStorage.getItem('token');
-        }
+		function getToken() {
+			return localStorage.getItem('token');
+		}
 
-        function setToken(token) {
-            localStorage.setItem('token', token);
-        }
+		function setToken(token) {
+			localStorage.setItem('token', token);
+		}
 
-        function removeToken() {
-            localStorage.removeItem('token');
-        }
+		function removeToken() {
+			localStorage.removeItem('token');
+		}
 
-        async function validateToken() {
-            const token = getToken();
-            if (!token) return false;
+		async function validateToken() {
+			const token = getToken();
+			if (!token) {
+				console.log('No token found in localStorage');
+				return false;
+			}
 
-            try {
-                const response = await fetch(`${SERVER_URL}/validate-token`, {
-                    headers: {
-                        'Authorization': `Bearer ${token}`
-                    }
-                });
-                const data = await response.json();
-                return data.valid;
-            } catch (error) {
-                console.error('Error validating token:', error);
-                return false;
-            }
-        }
+			try {
+				console.log('Validating token...');
+				const response = await fetch(`${SERVER_URL}/validate-token`, {
+					method: 'GET',
+					headers: {
+						'Authorization': `Bearer ${token}`
+					}
+				});
+				const data = await response.json();
+				console.log('Token validation response:', data);
+				return data.valid;
+			} catch (error) {
+				console.error('Error validating token:', error);
+				return false;
+			}
+		}
 
-        async function logout() {
-            removeToken();
-            window.location.href = 'https://jumperai.org/log-in';
-        }
+		async function logout() {
+			console.log('Logging out...');
+			removeToken();
+			window.location.href = LOGIN_URL;
+		}
 
-        async function checkLoginStatus() {
-            const isValid = await validateToken();
-            if (!isValid) {
-                console.log('Token is invalid or not present, redirecting to login...');
-                window.location.href = 'https://jumperai.org/log-in';
-            }
-            return isValid;
-        }
+		async function checkLoginStatus() {
+			console.log('Checking login status...');
+			const isValid = await validateToken();
+			if (!isValid) {
+				console.log('Token is invalid or not present, redirecting to login...');
+				window.location.href = LOGIN_URL;
+			}
+			return isValid;
+		}
 
-        async function initializeGame() {
-            const isLoggedIn = await checkLoginStatus();
+		async function initializeGame() {
+			console.log('Initializing game...');
+			const isLoggedIn = await checkLoginStatus();
 
-            if (isLoggedIn) {
-                console.log('User is logged in, initializing game...');
-                const token = getToken();
-                const gameFrame = document.getElementById('hub-world-frame');
-                gameFrame.contentWindow.postMessage({ type: 'SET_TOKEN', token: token }, 'https://jumperai-hub.netlify.app');
-            }
-        }
+			if (isLoggedIn) {
+				console.log('User is logged in, setting up game frame...');
+				const token = getToken();
+				const gameFrame = document.getElementById('hub-world-frame');
+				if (gameFrame && gameFrame.contentWindow) {
+					console.log('Posting token to game frame...');
+					gameFrame.contentWindow.postMessage({ type: 'SET_TOKEN', token: token }, 'https://jumperai-hub.netlify.app');
+				} else {
+					console.error('Game frame not found or not ready');
+				}
+			} else {
+				console.log('User is not logged in');
+			}
+		}
 
-        document.addEventListener('DOMContentLoaded', () => {
-            initializeGame();
+		document.addEventListener('DOMContentLoaded', () => {
+			console.log('DOM content loaded, initializing...');
+			initializeGame();
 
-            const logoutButton = document.getElementById('logout-button');
-            if (logoutButton) {
-                logoutButton.addEventListener('click', logout);
-            }
-        });
+			const logoutButton = document.getElementById('logout-button');
+			if (logoutButton) {
+				logoutButton.addEventListener('click', logout);
+			} else {
+				console.error('Logout button not found');
+			}
+		});
 
-        window.addEventListener('message', (event) => {
-            if (event.origin !== 'https://jumperai-hub.netlify.app') return;
-            
-            if (event.data.type === 'GET_TOKEN') {
-                const token = getToken();
-                event.source.postMessage({ type: 'TOKEN', token: token }, event.origin);
-            }
-        });
-    </script>
+		window.addEventListener('message', (event) => {
+			if (event.origin !== 'https://jumperai-hub.netlify.app') return;
+			
+			console.log('Received message from game frame:', event.data);
+			if (event.data.type === 'GET_TOKEN') {
+				const token = getToken();
+				console.log('Sending token to game frame');
+				event.source.postMessage({ type: 'TOKEN', token: token }, event.origin);
+			}
+		});
+
+		// Expose for debugging
+		window.debugGame = {
+			getToken,
+			setToken,
+			removeToken,
+			validateToken,
+			checkLoginStatus,
+			initializeGame
+		};
+	</script>
+
 </body>
 </html>
