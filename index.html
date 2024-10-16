@@ -104,29 +104,43 @@
             }
         }
 
-        async function initializeGame() {
-            let token = getToken();
-            if (!token) {
-                token = await fetchAndStoreToken();
+        async function checkLoginStatus() {
+            const userId = localStorage.getItem('userId');
+            const token = localStorage.getItem('token');
+
+            if (!userId || !token) {
+                console.log('No userId or token found, user is not logged in');
+                return false;
             }
 
-            if (token) {
-                const isValid = await validateToken(token);
-                if (isValid) {
-                    console.log('Token is valid, initializing game...');
-                    // Here you can add any game initialization logic
-                    // For example, you might want to pass the token to your game iframe:
-                    const gameFrame = document.getElementById('hub-world-frame');
-                    gameFrame.contentWindow.postMessage({ type: 'SET_TOKEN', token: token }, '*');
-                } else {
-                    console.log('Token is invalid, redirecting to login...');
-                    // Redirect to login page or show login modal
-                    window.location.href = 'https://jumperai.org/log-in';
-                }
-            } else {
-                console.log('No token available, redirecting to login...');
-                window.location.href = 'https://jumperai.org/log-in';
+            const isValid = await validateToken(token);
+            if (!isValid) {
+                console.log('Token is invalid, user needs to log in again');
+                return false;
             }
+
+            console.log('User is logged in and token is valid');
+            return true;
+        }
+
+        async function initializeGame() {
+            const isLoggedIn = await checkLoginStatus();
+
+            if (!isLoggedIn) {
+                let token = await fetchAndStoreToken();
+                if (!token) {
+                    console.log('Unable to fetch token, redirecting to login...');
+                    window.location.href = 'https://jumperai.org/log-in';
+                    return;
+                }
+            }
+
+            console.log('Initializing game...');
+            const token = getToken();
+            // Here you can add any game initialization logic
+            // For example, you might want to pass the token to your game iframe:
+            const gameFrame = document.getElementById('hub-world-frame');
+            gameFrame.contentWindow.postMessage({ type: 'SET_TOKEN', token: token }, '*');
         }
 
         // Make these functions available globally
