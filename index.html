@@ -44,39 +44,18 @@
     <script>
         const SERVER_URL = 'https://game-progress-server.onrender.com';
 
-        async function fetchAndStoreToken() {
-            const userId = localStorage.getItem('userId');
-            if (!userId) {
-                console.error('No userId found in localStorage');
-                return null;
-            }
-
-            try {
-                const response = await fetch(`${SERVER_URL}/get-token/${userId}`, {
-                    method: 'GET',
-                    headers: {
-                        'Content-Type': 'application/json',
-                    },
-                });
-                if (!response.ok) {
-                    throw new Error('Failed to fetch token');
-                }
-                const data = await response.json();
-                localStorage.setItem('token', data.token);
-                console.log('Token fetched and stored successfully');
-                return data.token;
-            } catch (error) {
-                console.error('Error fetching token:', error);
-                return null;
-            }
+        function getToken() {
+            const token = localStorage.getItem('token');
+            return token ? token.replace('Bearer ', '') : null;
         }
 
-        function getToken() {
-            return localStorage.getItem('token');
+        function setToken(token) {
+            localStorage.setItem('token', token.startsWith('Bearer ') ? token : `Bearer ${token}`);
         }
 
         function parseToken(token) {
             if (!token) return null;
+            token = token.replace('Bearer ', '');
             try {
                 const base64Url = token.split('.')[1];
                 const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
@@ -88,6 +67,8 @@
         }
 
         async function validateToken(token) {
+            if (!token) return false;
+            token = token.replace('Bearer ', '');
             try {
                 const response = await fetch(`${SERVER_URL}/validate-token/${token}`);
                 const data = await response.json();
@@ -105,11 +86,9 @@
         }
 
         async function checkLoginStatus() {
-            const userId = localStorage.getItem('userId');
-            const token = localStorage.getItem('token');
-
-            if (!userId || !token) {
-                console.log('No userId or token found, user is not logged in');
+            const token = getToken();
+            if (!token) {
+                console.log('No token found, user is not logged in');
                 return false;
             }
 
@@ -127,12 +106,9 @@
             const isLoggedIn = await checkLoginStatus();
 
             if (!isLoggedIn) {
-                let token = await fetchAndStoreToken();
-                if (!token) {
-                    console.log('Unable to fetch token, redirecting to login...');
-                    window.location.href = 'https://jumperai.org/log-in';
-                    return;
-                }
+                console.log('User is not logged in, redirecting to login...');
+                window.location.href = 'https://jumperai.org/login';
+                return;
             }
 
             console.log('Initializing game...');
