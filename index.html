@@ -92,16 +92,28 @@
             window.location.href = LOGIN_URL;
         }
 
+        function sendTokenToGame(token) {
+            const gameFrame = document.getElementById('hub-world-frame');
+            if (gameFrame && gameFrame.contentWindow) {
+                console.log('Sending token to game frame:', token);
+                gameFrame.contentWindow.postMessage({ type: 'SET_TOKEN', token: token }, GAME_ORIGIN);
+            } else {
+                console.error('Game frame not found or not ready');
+            }
+        }
+
         async function initializeGame() {
             console.log('Initializing game...');
             const urlToken = getTokenFromURL();
             
+            let token;
             if (urlToken) {
                 console.log('Token found in URL, validating...');
                 const isValid = await validateToken(urlToken);
                 if (isValid) {
                     console.log('Token is valid, storing in localStorage');
                     setToken(urlToken);
+                    token = urlToken;
                     // Remove token from URL
                     window.history.replaceState({}, document.title, window.location.pathname);
                 } else {
@@ -110,8 +122,8 @@
                     return;
                 }
             } else {
-                const storedToken = getToken();
-                if (!storedToken) {
+                token = getToken();
+                if (!token) {
                     console.log('No token found, redirecting to login');
                     window.location.href = LOGIN_URL;
                     return;
@@ -119,13 +131,11 @@
                 console.log('Using stored token');
             }
 
-            const gameFrame = document.getElementById('hub-world-frame');
-            if (gameFrame && gameFrame.contentWindow) {
-                console.log('Posting token to game frame...');
-                gameFrame.contentWindow.postMessage({ type: 'SET_TOKEN', token: getToken() }, GAME_ORIGIN);
-            } else {
-                console.error('Game frame not found or not ready');
-            }
+            // Send token immediately
+            sendTokenToGame(token);
+
+            // Also set up an interval to keep sending the token
+            setInterval(() => sendTokenToGame(token), 5000);
         }
 
         document.addEventListener('DOMContentLoaded', () => {
@@ -149,7 +159,7 @@
             console.log('Received message from game frame:', event.data);
             if (event.data.type === 'GET_TOKEN') {
                 const token = getToken();
-                console.log('Sending token to game frame');
+                console.log('Game requested token, sending:', token);
                 event.source.postMessage({ type: 'TOKEN', token: token }, event.origin);
             }
         });
@@ -160,7 +170,8 @@
             setToken,
             removeToken,
             validateToken,
-            initializeGame
+            initializeGame,
+            sendTokenToGame
         };
     </script>
 </body>
