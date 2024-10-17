@@ -49,6 +49,7 @@
     <script>
         const SERVER_URL = 'https://game-progress-server.onrender.com';
         const LOGIN_URL = 'https://jumperai.org/log-in';
+        const GAME_ORIGIN = 'https://jumperai-hub.netlify.app';
 
         function getToken() {
             return localStorage.getItem('token');
@@ -121,7 +122,7 @@
             const gameFrame = document.getElementById('hub-world-frame');
             if (gameFrame && gameFrame.contentWindow) {
                 console.log('Posting token to game frame...');
-                gameFrame.contentWindow.postMessage({ type: 'SET_TOKEN', token: getToken() }, 'https://jumperai-hub.netlify.app');
+                gameFrame.contentWindow.postMessage({ type: 'SET_TOKEN', token: getToken() }, GAME_ORIGIN);
             } else {
                 console.error('Game frame not found or not ready');
             }
@@ -140,7 +141,10 @@
         });
 
         window.addEventListener('message', (event) => {
-            if (event.origin !== 'https://jumperai-hub.netlify.app') return;
+            if (event.origin !== GAME_ORIGIN) {
+                console.log('Received message from unexpected origin:', event.origin);
+                return;
+            }
             
             console.log('Received message from game frame:', event.data);
             if (event.data.type === 'GET_TOKEN') {
