@@ -11,14 +11,14 @@
                 extend: {
                     colors: {
                         'light-blue': '#E6F3FF',
-                        'light-grey': '#F0F0F0',},
+                        'light-grey': '#F0F0F0',
+                    },
                 },
             },
         }
     </script>
 </head>
-<body class="min-h-screen flex flex-col bg-white text-gray-800">
-    <header class="bg-light-blue p-4 shadow-md">
+<body class="min-h-screen flex flex-col bg-white text-gray-800"><header class="bg-light-blue p-4 shadow-md">
         <nav class="container mx-auto flex justify-between items-center">
             <h1 class="text-2xl font-bold text-gray-800">JumperAI Game Hub</h1>
             <div>
@@ -142,7 +142,7 @@
                 } else {
                     console.log('Token is invalid, redirecting to login');
                     window.location.href = LOGIN_URL;
-                    return;
+                return;
                 }
             } else {
                 token = getToken();
@@ -167,7 +167,21 @@
                     // Optionally redirect to login if refresh consistently fails
                 }
             }, 30 * 60 * 1000); // Refresh every 30 minutes
-        }document.addEventListener('DOMContentLoaded', () => {
+        }
+
+        // New function to handle module redirect
+        function redirectToModule(moduleUrl) {
+            const token = getToken();
+            if (token) {
+                const redirectUrl = `${moduleUrl}?token=${encodeURIComponent(token)}`;
+                window.location.href = redirectUrl;
+            } else {
+                console.error('No token available for redirect');
+                window.location.href = LOGIN_URL;
+            }
+        }
+
+        document.addEventListener('DOMContentLoaded', () => {
             console.log('DOM content loaded, initializing...');
             initializeGame();
 
@@ -198,6 +212,14 @@
                         console.error('Token refresh failed');
                     }
                 });
+            } else if (event.data.type === 'REDIRECT_TO_MODULE') {
+                // Handle redirect request from game frame
+                if (event.data.moduleUrl) {
+                    console.log('Redirecting to module:', event.data.moduleUrl);
+                    redirectToModule(event.data.moduleUrl);
+                } else {
+                    console.error('Module URL not provided for redirect');
+                }
             }
         });
 
@@ -209,7 +231,8 @@
             validateToken,
             refreshToken,
             initializeGame,
-            sendTokenToGame
+            sendTokenToGame,
+            redirectToModule
         };
     </script>
 </body>
