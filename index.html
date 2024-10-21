@@ -11,14 +11,14 @@
                 extend: {
                     colors: {
                         'light-blue': '#E6F3FF',
-                        'light-grey': '#F0F0F0',},
+                        'light-grey': '#F0F0F0',
+                    },
                 },
             },
         }
     </script>
 </head>
-<body class="min-h-screen flex flex-col bg-white text-gray-800">
-    <header class="bg-light-blue p-4 shadow-md">
+<body class="min-h-screen flex flex-col bg-white text-gray-800"><header class="bg-light-blue p-4 shadow-md">
         <nav class="container mx-auto flex justify-between items-center">
             <h1 class="text-2xl font-bold text-gray-800">JumperAI Game Hub</h1>
             <div>
@@ -141,7 +141,8 @@
                     window.history.replaceState({}, document.title, window.location.pathname);
                 } else {
                     console.log('Token is invalid, redirecting to login');
-                    window.location.href = LOGIN_URL;return;
+                    window.location.href = LOGIN_URL;
+                return;
                 }
             } else {
                 token = getToken();
@@ -168,22 +169,19 @@
             }, 30 * 60 * 1000); // Refresh every 30 minutes
         }
 
+        // New function to handle module redirect
         function redirectToModule(moduleUrl) {
             const token = getToken();
             if (token) {
                 const redirectUrl = `${moduleUrl}?token=${encodeURIComponent(token)}`;
-                console.log('Redirecting to:', redirectUrl);
-                setTimeout(() => {
-                    window.location.href = redirectUrl;// Force reload after a short delay
-                    setTimeout(() => {
-                        window.location.reload();
-                    }, 100);
-                }, 100);
+                window.location.href = redirectUrl;
             } else {
                 console.error('No token available for redirect');
                 window.location.href = LOGIN_URL;
             }
-        }document.addEventListener('DOMContentLoaded', () => {
+        }
+
+        document.addEventListener('DOMContentLoaded', () => {
             console.log('DOM content loaded, initializing...');
             initializeGame();
 
@@ -196,7 +194,6 @@
         });
 
         window.addEventListener('message', (event) => {
-            console.log('Received message:', event);
             if (event.origin !== GAME_ORIGIN) {
                 console.log('Received message from unexpected origin:', event.origin);
                 return;
@@ -218,13 +215,11 @@
             } else if (event.data.type === 'REDIRECT_TO_MODULE') {
                 // Handle redirect request from game frame
                 if (event.data.moduleUrl) {
-                    console.log('Received redirect request to module:', event.data.moduleUrl);
+                    console.log('Redirecting to module:', event.data.moduleUrl);
                     redirectToModule(event.data.moduleUrl);
                 } else {
                     console.error('Module URL not provided for redirect');
                 }
-            } else {
-                console.log('Unhandled message type:', event.data.type);
             }
         });
 
