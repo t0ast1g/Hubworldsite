@@ -48,6 +48,7 @@
         const SERVER_URL = 'https://game-progress-server.onrender.com';
         const LOGIN_URL = 'https://jumperai.org/log-in';
         const GAME_ORIGIN = 'https://jumperai-hub.netlify.app';
+        const HUB_ORIGIN = 'https://hubworldsite.onrender.com';
 
         function getToken() {
             return localStorage.getItem('token');
@@ -84,19 +85,25 @@
             }
         }
 
-        async function refreshToken(token) {
+        async function refreshToken() {
             try {
+                const currentToken = getToken();
+                if (!currentToken) {
+                    throw new Error('No token to refresh');
+                }
                 const response = await fetch(`${SERVER_URL}/refresh-token`, {
                     method: 'POST',
                     headers: {
-                        'Content-Type': 'application/json',},
-                    body: JSON.stringify({ token }),
+                        'Authorization': `Bearer ${currentToken}`,
+                        'Content-Type': 'application/json',
+                    },
                 });
                 const data = await response.json();
                 if (data.token) {
                     setToken(data.token);
                     return data.token;
-                }throw new Error('No token in refresh response');
+                }
+                throw new Error('No token in refresh response');
             } catch (error) {
                 console.error('Error refreshing token:', error);
                 return null;
@@ -130,7 +137,7 @@
                     console.log('Token is valid, storing in localStorage');
                     setToken(urlToken);
                     token = urlToken;
-                    // Remove token from URL
+                // Remove token from URL
                     window.history.replaceState({}, document.title, window.location.pathname);
                 } else {
                     console.log('Token is invalid, redirecting to login');
@@ -152,16 +159,15 @@
 
             // Set up token refresh
             setInterval(async () => {
-                const newToken = await refreshToken(getToken());
+                const newToken = await refreshToken();
                 if (newToken) {
                     sendTokenToGame(newToken);
                 } else {
-                    console.error('Token refresh failed');// Optionally redirect to login if refresh consistently fails
+                    console.error('Token refresh failed');
+                    // Optionally redirect to login if refresh consistently fails
                 }
             }, 30 * 60 * 1000); // Refresh every 30 minutes
-        }
-
-        document.addEventListener('DOMContentLoaded', () => {
+        }document.addEventListener('DOMContentLoaded', () => {
             console.log('DOM content loaded, initializing...');
             initializeGame();
 
@@ -183,9 +189,9 @@
             if (event.data.type === 'GET_TOKEN') {
                 const token = getToken();
                 console.log('Game requested token, sending');
-                event.source.postMessage({ type: 'TOKEN', token: token }, event.origin);
+                sendTokenToGame(token);
             } else if (event.data.type === 'REFRESH_TOKEN') {
-                refreshToken(getToken()).then(newToken => {
+                refreshToken().then(newToken => {
                     if (newToken) {
                         sendTokenToGame(newToken);
                     } else {
