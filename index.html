@@ -34,7 +34,7 @@
 
     <main class="flex-grow container mx-auto p-4">
         <div class="w-full overflow-hidden rounded-lg shadow-lg">
-            <iframe id="hub-world-frame" src="https://jumperai-hub.netlify.app" width="1024" height="820" frameborder="0" allowfullscreen class="w-full"></iframe>
+            <iframe id="game-frame" src="https://jumperai-hub.netlify.app" width="1024" height="820" frameborder="0" allowfullscreen class="w-full"></iframe>
         </div>
     </main>
 
@@ -47,8 +47,12 @@
     <script>
         const SERVER_URL = 'https://game-progress-server.onrender.com';
         const LOGIN_URL = 'https://jumperai.org/log-in';
-        const GAME_ORIGIN = 'https://jumperai-hub.netlify.app';
-        const HUB_ORIGIN = 'https://hubworldsite.onrender.com';
+        const HUB_ORIGIN = 'https://jumperai-hub.netlify.app';
+        const MODULE_ORIGINS = {
+            'module4': 'https://module4jumperai.netlify.app'
+        };
+
+        let currentOrigin = HUB_ORIGIN;
 
         function getToken() {
             return localStorage.getItem('token');
@@ -117,10 +121,10 @@
         }
 
         function sendTokenToGame(token) {
-            const gameFrame = document.getElementById('hub-world-frame');
+            const gameFrame = document.getElementById('game-frame');
             if (gameFrame && gameFrame.contentWindow) {
                 console.log('Sending token to game frame');
-                gameFrame.contentWindow.postMessage({ type: 'SET_TOKEN', token: token }, GAME_ORIGIN);
+                gameFrame.contentWindow.postMessage({ type: 'SET_TOKEN', token: token }, currentOrigin);
             } else {
                 console.error('Game frame not found or not ready');
             }
@@ -137,7 +141,7 @@
                     console.log('Token is valid, storing in localStorage');
                     setToken(urlToken);
                     token = urlToken;
-                    // Remove token from URL
+                // Remove token from URL
                     window.history.replaceState({}, document.title, window.location.pathname);
                 } else {
                     console.log('Token is invalid, redirecting to login');
@@ -172,6 +176,7 @@
         function handleProgressUpdate(moduleId, progress) {
             // Update local storage or state management with the new progress
             localStorage.setItem(`moduleProgress_${moduleId}`, JSON.stringify(progress));
+            
             // Update UI to reflect new progress
             updateProgressUI(moduleId, progress);
         }
@@ -185,11 +190,16 @@
         }
 
         function loadUnityModule(moduleId) {
-            const container = document.getElementById('hub-world-frame');
-            const buildUrl = `https://module${moduleId}jumperai.netlify.app`; // Adjust this URL as needed
+            const gameFrame = document.getElementById('game-frame');
+            const moduleOrigin = MODULE_ORIGINS[moduleId];
             
-            // Update the iframe src
-            container.src = buildUrl;
+            if (moduleOrigin) {
+                currentOrigin = moduleOrigin;
+                gameFrame.src = moduleOrigin;
+                console.log(`Loading module ${moduleId} from ${moduleOrigin}`);
+            } else {
+                console.error(`Unknown module ID: ${moduleId}`);
+            }
         }
 
         document.addEventListener('DOMContentLoaded', () => {
@@ -205,7 +215,7 @@
         });
 
         window.addEventListener('message', (event) => {
-            if (event.origin !== GAME_ORIGIN) {
+            if (event.origin !== currentOrigin) {
                 console.log('Received message from unexpected origin:', event.origin);
                 return;
             }
@@ -233,7 +243,12 @@
                 case 'LOAD_MODULE':
                     console.log('Loading module:', event.data.moduleId);
                     loadUnityModule(event.data.moduleId);
-                    break;default:
+                    break;
+                case 'RETURN_TO_HUB':
+                    console.log('Returning to hub');
+                    currentOrigin = HUB_ORIGIN;document.getElementById('game-frame').src = HUB_ORIGIN;
+                    break;
+                default:
                     console.log('Unknown message type:', event.data.type);
             }
         });
