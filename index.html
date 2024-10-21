@@ -1,4 +1,3 @@
-
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -12,8 +11,7 @@
                 extend: {
                     colors: {
                         'light-blue': '#E6F3FF',
-                        'light-grey': '#F0F0F0',
-                    },
+                        'light-grey': '#F0F0F0',},
                 },
             },
         }
@@ -86,6 +84,25 @@
             }
         }
 
+        async function refreshToken(token) {
+            try {
+                const response = await fetch(`${SERVER_URL}/refresh-token`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',},
+                    body: JSON.stringify({ token }),
+                });
+                const data = await response.json();
+                if (data.token) {
+                    setToken(data.token);
+                    return data.token;
+                }throw new Error('No token in refresh response');
+            } catch (error) {
+                console.error('Error refreshing token:', error);
+                return null;
+            }
+        }
+
         async function logout() {
             console.log('Logging out...');
             removeToken();
@@ -95,7 +112,7 @@
         function sendTokenToGame(token) {
             const gameFrame = document.getElementById('hub-world-frame');
             if (gameFrame && gameFrame.contentWindow) {
-                console.log('Sending token to game frame:', token);
+                console.log('Sending token to game frame');
                 gameFrame.contentWindow.postMessage({ type: 'SET_TOKEN', token: token }, GAME_ORIGIN);
             } else {
                 console.error('Game frame not found or not ready');
@@ -105,7 +122,6 @@
         async function initializeGame() {
             console.log('Initializing game...');
             const urlToken = getTokenFromURL();
-            
             let token;
             if (urlToken) {
                 console.log('Token found in URL, validating...');
@@ -134,8 +150,15 @@
             // Send token immediately
             sendTokenToGame(token);
 
-            // Also set up an interval to keep sending the token
-            setInterval(() => sendTokenToGame(token), 5000);
+            // Set up token refresh
+            setInterval(async () => {
+                const newToken = await refreshToken(getToken());
+                if (newToken) {
+                    sendTokenToGame(newToken);
+                } else {
+                    console.error('Token refresh failed');// Optionally redirect to login if refresh consistently fails
+                }
+            }, 30 * 60 * 1000); // Refresh every 30 minutes
         }
 
         document.addEventListener('DOMContentLoaded', () => {
@@ -159,8 +182,16 @@
             console.log('Received message from game frame:', event.data);
             if (event.data.type === 'GET_TOKEN') {
                 const token = getToken();
-                console.log('Game requested token, sending:', token);
+                console.log('Game requested token, sending');
                 event.source.postMessage({ type: 'TOKEN', token: token }, event.origin);
+            } else if (event.data.type === 'REFRESH_TOKEN') {
+                refreshToken(getToken()).then(newToken => {
+                    if (newToken) {
+                        sendTokenToGame(newToken);
+                    } else {
+                        console.error('Token refresh failed');
+                    }
+                });
             }
         });
 
@@ -170,6 +201,7 @@
             setToken,
             removeToken,
             validateToken,
+            refreshToken,
             initializeGame,
             sendTokenToGame
         };
