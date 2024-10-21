@@ -11,14 +11,14 @@
                 extend: {
                     colors: {
                         'light-blue': '#E6F3FF',
-                        'light-grey': '#F0F0F0',
-                    },
+                        'light-grey': '#F0F0F0',},
                 },
             },
         }
     </script>
 </head>
-<body class="min-h-screen flex flex-col bg-white text-gray-800"><header class="bg-light-blue p-4 shadow-md">
+<body class="min-h-screen flex flex-col bg-white text-gray-800">
+    <header class="bg-light-blue p-4 shadow-md">
         <nav class="container mx-auto flex justify-between items-center">
             <h1 class="text-2xl font-bold text-gray-800">JumperAI Game Hub</h1>
             <div>
@@ -51,20 +51,26 @@
         const HUB_ORIGIN = 'https://hubworldsite.onrender.com';
 
         function getToken() {
-            return localStorage.getItem('token');
+            const token = localStorage.getItem('token');
+            console.log('Retrieved token from storage:', token ? 'Token exists' : 'No token');
+            return token;
         }
 
         function setToken(token) {
+            console.log('Setting token in storage');
             localStorage.setItem('token', token);
         }
 
         function removeToken() {
+            console.log('Removing token from storage');
             localStorage.removeItem('token');
         }
 
         function getTokenFromURL() {
             const urlParams = new URLSearchParams(window.location.search);
-            return urlParams.get('token');
+            const token = urlParams.get('token');
+            console.log('Token from URL:', token ? 'Token found' : 'No token in URL');
+            return token;
         }
 
         async function validateToken(token) {
@@ -91,6 +97,7 @@
                 if (!currentToken) {
                     throw new Error('No token to refresh');
                 }
+                console.log('Refreshing token...');
                 const response = await fetch(`${SERVER_URL}/refresh-token`, {
                     method: 'POST',
                     headers: {
@@ -101,6 +108,7 @@
                 const data = await response.json();
                 if (data.token) {
                     setToken(data.token);
+                    console.log('Token refreshed successfully');
                     return data.token;
                 }
                 throw new Error('No token in refresh response');
@@ -128,34 +136,29 @@
 
         async function initializeGame() {
             console.log('Initializing game...');
-            const urlToken = getTokenFromURL();
-            let token;
-            if (urlToken) {
-                console.log('Token found in URL, validating...');
-                const isValid = await validateToken(urlToken);
-                if (isValid) {
-                    console.log('Token is valid, storing in localStorage');
-                    setToken(urlToken);
-                    token = urlToken;
-                // Remove token from URL
-                    window.history.replaceState({}, document.title, window.location.pathname);
-                } else {
-                    console.log('Token is invalid, redirecting to login');
-                    window.location.href = LOGIN_URL;
+            let token = getTokenFromURL() || getToken();
+
+            if (!token) {
+                console.log('No token found, redirecting to login');
+                window.location.href = LOGIN_URL;
                 return;
-                }
-            } else {
-                token = getToken();
-                if (!token) {
-                    console.log('No token found, redirecting to login');
-                    window.location.href = LOGIN_URL;
-                    return;
-                }
-                console.log('Using stored token');
             }
 
-            // Send token immediately
-            sendTokenToGame(token);
+            console.log('Validating token...');
+            const isValid = await validateToken(token);
+            if (isValid) {
+                console.log('Token is valid, storing in localStorage');
+                setToken(token);
+                // Remove token from URL if it exists
+                if (getTokenFromURL()) {
+                    window.history.replaceState({}, document.title, window.location.pathname);
+                }// Send token to game
+                sendTokenToGame(token);
+            } else {
+                console.log('Token is invalid, redirecting to login');
+                removeToken();
+                window.location.href = LOGIN_URL;return;
+            }
 
             // Set up token refresh
             setInterval(async () => {
@@ -169,11 +172,11 @@
             }, 30 * 60 * 1000); // Refresh every 30 minutes
         }
 
-        // New function to handle module redirect
         function redirectToModule(moduleUrl) {
             const token = getToken();
             if (token) {
                 const redirectUrl = `${moduleUrl}?token=${encodeURIComponent(token)}`;
+                console.log('Redirecting to module:', redirectUrl);
                 window.location.href = redirectUrl;
             } else {
                 console.error('No token available for redirect');
@@ -194,12 +197,12 @@
         });
 
         window.addEventListener('message', (event) => {
+            console.log('Received message:', event.origin, event.data);
             if (event.origin !== GAME_ORIGIN) {
                 console.log('Received message from unexpected origin:', event.origin);
                 return;
             }
             
-            console.log('Received message from game frame:', event.data);
             if (event.data.type === 'GET_TOKEN') {
                 const token = getToken();
                 console.log('Game requested token, sending');
@@ -213,13 +216,14 @@
                     }
                 });
             } else if (event.data.type === 'REDIRECT_TO_MODULE') {
-                // Handle redirect request from game frame
                 if (event.data.moduleUrl) {
                     console.log('Redirecting to module:', event.data.moduleUrl);
                     redirectToModule(event.data.moduleUrl);
                 } else {
                     console.error('Module URL not provided for redirect');
                 }
+            } else {
+                console.log('Unhandled message type:', event.data.type);
             }
         });
 
