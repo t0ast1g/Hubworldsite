@@ -137,7 +137,7 @@
                     console.log('Token is valid, storing in localStorage');
                     setToken(urlToken);
                     token = urlToken;
-                // Remove token from URL
+                    // Remove token from URL
                     window.history.replaceState({}, document.title, window.location.pathname);
                 } else {
                     console.log('Token is invalid, redirecting to login');
@@ -167,7 +167,32 @@
                     // Optionally redirect to login if refresh consistently fails
                 }
             }, 30 * 60 * 1000); // Refresh every 30 minutes
-        }document.addEventListener('DOMContentLoaded', () => {
+        }
+
+        function handleProgressUpdate(moduleId, progress) {
+            // Update local storage or state management with the new progress
+            localStorage.setItem(`moduleProgress_${moduleId}`, JSON.stringify(progress));
+            // Update UI to reflect new progress
+            updateProgressUI(moduleId, progress);
+        }
+
+        function updateProgressUI(moduleId, progress) {
+            // Update any UI elements that display module progress
+            const progressElement = document.getElementById(`progress-${moduleId}`);
+            if (progressElement) {
+                progressElement.textContent = `Module ${moduleId}: ${progress.completed ? 'Completed' : 'In Progress'} - Score: ${progress.score}`;
+            }
+        }
+
+        function loadUnityModule(moduleId) {
+            const container = document.getElementById('hub-world-frame');
+            const buildUrl = `https://module${moduleId}jumperai.netlify.app`; // Adjust this URL as needed
+            
+            // Update the iframe src
+            container.src = buildUrl;
+        }
+
+        document.addEventListener('DOMContentLoaded', () => {
             console.log('DOM content loaded, initializing...');
             initializeGame();
 
@@ -186,18 +211,30 @@
             }
             
             console.log('Received message from game frame:', event.data);
-            if (event.data.type === 'GET_TOKEN') {
-                const token = getToken();
-                console.log('Game requested token, sending');
-                sendTokenToGame(token);
-            } else if (event.data.type === 'REFRESH_TOKEN') {
-                refreshToken().then(newToken => {
-                    if (newToken) {
-                        sendTokenToGame(newToken);
-                    } else {
-                        console.error('Token refresh failed');
-                    }
-                });
+            switch (event.data.type) {
+                case 'GET_TOKEN':
+                    const token = getToken();
+                    console.log('Game requested token, sending');
+                    sendTokenToGame(token);
+                    break;
+                case 'REFRESH_TOKEN':
+                    refreshToken().then(newToken => {
+                        if (newToken) {
+                            sendTokenToGame(newToken);
+                        } else {
+                            console.error('Token refresh failed');
+                        }
+                    });
+                    break;
+                case 'PROGRESS_UPDATED':
+                    console.log('Progress updated:', event.data);
+                    handleProgressUpdate(event.data.moduleId, event.data.progress);
+                    break;
+                case 'LOAD_MODULE':
+                    console.log('Loading module:', event.data.moduleId);
+                    loadUnityModule(event.data.moduleId);
+                    break;default:
+                    console.log('Unknown message type:', event.data.type);
             }
         });
 
@@ -209,7 +246,8 @@
             validateToken,
             refreshToken,
             initializeGame,
-            sendTokenToGame
+            sendTokenToGame,
+            loadUnityModule
         };
     </script>
 </body>
