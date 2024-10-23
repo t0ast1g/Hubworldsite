@@ -45,225 +45,261 @@
     </footer>
 
     <script>
-        const SERVER_URL = 'https://game-progress-server.onrender.com';
-        const LOGIN_URL = 'https://jumperai.org/log-in';
-        const HUB_ORIGIN = 'https://jumperai-hub.netlify.app';
-        const MODULE_ORIGINS = {
-            'module4': 'https://module4jumperai.netlify.app'
-        };
+        const SERVER_URL = 'https://game-progress-server.onrender.com';  
+        const LOGIN_URL = 'https://jumperai.org/log-in';  
+        const HUB_ORIGIN = 'https://jumperai-hub.netlify.app';  
+        const MODULE_ORIGINS = {  
+            'module4': 'https://module4jumperai.netlify.app'  
+        };  
 
-        let currentOrigin = HUB_ORIGIN;
+        let currentOrigin = HUB_ORIGIN;  
 
-        function getToken() {
-            return localStorage.getItem('token');
-        }
+        function getToken() {  
+            return localStorage.getItem('token');  
+        }  
 
-        function setToken(token) {
-            localStorage.setItem('token', token);
-        }
+        function setToken(token) {  
+            localStorage.setItem('token', token);  
+        }  
 
-        function removeToken() {
-            localStorage.removeItem('token');
-        }
+        function removeToken() {  
+            localStorage.removeItem('token');  
+        }  
 
-        function getTokenFromURL() {
-            const urlParams = new URLSearchParams(window.location.search);
-            return urlParams.get('token');
-        }
+        function getTokenFromURL() {  
+            const urlParams = new URLSearchParams(window.location.search);  
+            return urlParams.get('token');  
+        }  
 
-        async function validateToken(token) {
-            try {
-                console.log('Validating token...');
-                const response = await fetch(`${SERVER_URL}/validate-token`, {
-                    method: 'GET',
-                    headers: {
-                        'Authorization': `Bearer ${token}`
-                    }
-                });
-                const data = await response.json();
-                console.log('Token validation response:', data);
-                return data.valid;
-            } catch (error) {
-                console.error('Error validating token:', error);
-                return false;
-            }
-        }
+        async function makeAuthenticatedRequest(url, options = {}, retryCount = 0) {  
+            const token = getToken();  
+            if (!token) {  
+                throw new Error('No token available');  
+            }  
 
-        async function refreshToken() {
-            try {
-                const currentToken = getToken();
-                if (!currentToken) {
-                    throw new Error('No token to refresh');
-                }
-                const response = await fetch(`${SERVER_URL}/refresh-token`, {
-                    method: 'POST',
-                    headers: {
-                        'Authorization': `Bearer ${currentToken}`,
-                        'Content-Type': 'application/json',
-                    },
-                });
-                const data = await response.json();
-                if (data.token) {
-                    setToken(data.token);
-                    return data.token;
-                }
-                throw new Error('No token in refresh response');
-            } catch (error) {
-                console.error('Error refreshing token:', error);
-                return null;
-            }
-        }
+            try {  
+                const response = await fetch(url, {  
+                    ...options,  
+                    headers: {  
+                        ...options.headers,  
+                        'Authorization': `Bearer ${token}`  
+                    }  
+                });  
 
-        async function logout() {
-            console.log('Logging out...');
-            removeToken();
-            window.location.href = LOGIN_URL;
-        }
+                if (response.ok) {  
+                    return await response.json();  
+                }  
 
-        function sendTokenToGame(token) {
-            const gameFrame = document.getElementById('game-frame');
-            if (gameFrame && gameFrame.contentWindow) {
-                console.log('Sending token to game frame');
-                gameFrame.contentWindow.postMessage({ type: 'SET_TOKEN', token: token }, currentOrigin);
-            } else {
-                console.error('Game frame not found or not ready');
-            }
-        }
+                if (response.status === 401 && retryCount < 2) {  
+                    console.log('Token expired, attempting refresh...');  
+                    const newToken = await refreshToken();  
+                    if (newToken) {  
+                        console.log('Token refreshed, retrying request...');  
+                        return makeAuthenticatedRequest(url, options, retryCount + 1);  
+                    }  
+                }  
 
-        async function initializeGame() {
-            console.log('Initializing game...');
-            const urlToken = getTokenFromURL();
-            let token;
-            if (urlToken) {
-                console.log('Token found in URL, validating...');
-                const isValid = await validateToken(urlToken);
-                if (isValid) {
-                    console.log('Token is valid, storing in localStorage');
-                    setToken(urlToken);
-                    token = urlToken;
-                // Remove token from URL
-                    window.history.replaceState({}, document.title, window.location.pathname);
-                } else {
-                    console.log('Token is invalid, redirecting to login');
-                    window.location.href = LOGIN_URL;
-                    return;
-                }
-            } else {
-                token = getToken();
-                if (!token) {
-                    console.log('No token found, redirecting to login');
-                    window.location.href = LOGIN_URL;
-                    return;
-                }
-                console.log('Using stored token');
-            }
+                throw new Error('Request failed');  
+            } catch (error) {  
+                console.error('Request error:', error);  
+                if (retryCount < 2) {  
+                    console.log('Retrying request...');  
+                    return makeAuthenticatedRequest(url, options, retryCount + 1);  
+                }  
+                throw error;  
+            }  
+        }  
 
-            // Send token immediately
-            sendTokenToGame(token);
+        async function validateToken(token, retryCount = 0) {  
+            try {  
+                console.log('Validating token...');  
+                const response = await makeAuthenticatedRequest(`${SERVER_URL}/validate-token`, {  
+                    method: 'GET'  
+                });  
+                console.log('Token validation response:', response);  
+                return response.valid;  
+            } catch (error) {  
+                console.error('Error validating token:', error);  
+                if (retryCount < 2) {  
+                    console.log('Attempting token refresh...');  
+                    const newToken = await refreshToken();  
+                    if (newToken) {  
+                        return validateToken(newToken, retryCount + 1);  
+                    }  
+                }  
+                return false;  
+            }  
+        }  
 
-            // Set up token refresh
-            setInterval(async () => {
-                const newToken = await refreshToken();
-                if (newToken) {
-                    sendTokenToGame(newToken);
-                } else {
-                    console.error('Token refresh failed');
-                    // Optionally redirect to login if refresh consistently fails
-                }
-            }, 30 * 60 * 1000); // Refresh every 30 minutes
-        }
+        async function refreshToken() {  
+            try {  
+                const currentToken = getToken();  
+                if (!currentToken) {  
+                    throw new Error('No token to refresh');  
+                }  
+                const response = await fetch(`${SERVER_URL}/refresh-token`, {  
+                    method: 'POST',  
+                    headers: {  
+                        'Authorization': `Bearer ${currentToken}`,  
+                        'Content-Type': 'application/json',  
+                    },  
+                });  
+                const data = await response.json();  
+                if (data.token) {  
+                    setToken(data.token);  
+                    return data.token;  
+                }  
+                throw new Error('No token in refresh response');  
+            } catch (error) {  
+                console.error('Error refreshing token:', error);  
+                return null;  
+            }  
+        }  
 
-        function handleProgressUpdate(moduleId, progress) {
-            // Update local storage or state management with the new progress
-            localStorage.setItem(`moduleProgress_${moduleId}`, JSON.stringify(progress));
+        async function logout() {  
+            console.log('Logging out...');  
+            removeToken();  
+            window.location.href = LOGIN_URL;  
+        }  
+
+        function sendTokenToGame(token) {  
+            const gameFrame = document.getElementById('game-frame');  
+            if (gameFrame && gameFrame.contentWindow) {  
+                console.log('Sending token to game frame');  
+                gameFrame.contentWindow.postMessage({ type: 'SET_TOKEN', token: token }, currentOrigin);  
+            } else {  
+                console.error('Game frame not found or not ready');  
+            }  
+        }  
+
+        async function initializeGame() {  
+            console.log('Initializing game...');  
+            const urlToken = getTokenFromURL();  
+            let token;  
+
+            if (urlToken) {  
+                console.log('Token found in URL');  
+                setToken(urlToken);  
+                token = urlToken;  
+                // Remove token from URL  
+                window.history.replaceState({}, document.title, window.location.pathname);  
+            } else {  
+                token = getToken();  
+                if (!token) {  
+                    console.log('No token found, redirecting to login');  
+                    window.location.href = LOGIN_URL;  
+                    return;  
+                }  
+            }  
+
+            try {  
+                const isValid = await validateToken(token);  
+                if (!isValid) {  
+                    console.log('Token validation failed, redirecting to login');  
+                    window.location.href = LOGIN_URL;  
+                    return;  
+                }  
+
+                // Send token to game  
+                sendTokenToGame(token);  
+
+                // Set up token refresh  
+                setInterval(async () => {  
+                    const newToken = await refreshToken();  
+                    if (newToken) {  
+                        sendTokenToGame(newToken);  
+                    }  
+                }, 30 * 60 * 1000); // Refresh every 30 minutes  
+            } catch (error) {  
+                console.error('Initialization error:', error);  
+                window.location.href = LOGIN_URL;  
+            }  
+        }  
+
+        function handleProgressUpdate(moduleId, progress) {  
+            localStorage.setItem(`moduleProgress_${moduleId}`, JSON.stringify(progress));  
+            updateProgressUI(moduleId, progress);  
+        }  
+
+        function updateProgressUI(moduleId, progress) {  
+            const progressElement = document.getElementById(`progress-${moduleId}`);  
+            if (progressElement) {  
+                progressElement.textContent = `Module ${moduleId}: ${progress.completed ? 'Completed' : 'In Progress'} - Score: ${progress.score}`;  
+            }  
+        }  
+
+        function loadUnityModule(moduleId) {  
+            const gameFrame = document.getElementById('game-frame');  
+            const moduleOrigin = MODULE_ORIGINS[moduleId];  
             
-            // Update UI to reflect new progress
-            updateProgressUI(moduleId, progress);
-        }
+            if (moduleOrigin) {  
+                currentOrigin = moduleOrigin;  
+                gameFrame.src = moduleOrigin;  
+                console.log(`Loading module ${moduleId} from ${moduleOrigin}`);  
+            } else {  
+                console.error(`Unknown module ID: ${moduleId}`);  
+            }  
+        }  
 
-        function updateProgressUI(moduleId, progress) {
-            // Update any UI elements that display module progress
-            const progressElement = document.getElementById(`progress-${moduleId}`);
-            if (progressElement) {
-                progressElement.textContent = `Module ${moduleId}: ${progress.completed ? 'Completed' : 'In Progress'} - Score: ${progress.score}`;
-            }
-        }
+        document.addEventListener('DOMContentLoaded', () => {  
+            console.log('DOM content loaded, initializing...');  
+            initializeGame();  
 
-        function loadUnityModule(moduleId) {
-            const gameFrame = document.getElementById('game-frame');
-            const moduleOrigin = MODULE_ORIGINS[moduleId];
+            const logoutButton = document.getElementById('logout-button');  
+            if (logoutButton) {  
+                logoutButton.addEventListener('click', logout);  
+            }  
+        });  
+
+        window.addEventListener('message', (event) => {  
+            if (event.origin !== currentOrigin) {  
+                console.log('Received message from unexpected origin:', event.origin);  
+                return;  
+            }  
             
-            if (moduleOrigin) {
-                currentOrigin = moduleOrigin;
-                gameFrame.src = moduleOrigin;
-                console.log(`Loading module ${moduleId} from ${moduleOrigin}`);
-            } else {
-                console.error(`Unknown module ID: ${moduleId}`);
-            }
-        }
+            console.log('Received message from game frame:', event.data);  
+            switch (event.data.type) {  
+                case 'GET_TOKEN':  
+                    const token = getToken();  
+                    console.log('Game requested token, sending');  
+                    sendTokenToGame(token);  
+                    break;  
+                case 'REFRESH_TOKEN':  
+                    refreshToken().then(newToken => {  
+                        if (newToken) {  
+                            sendTokenToGame(newToken);  
+                        }  
+                    });  
+                    break;  
+                case 'PROGRESS_UPDATED':  
+                    console.log('Progress updated:', event.data);  
+                    handleProgressUpdate(event.data.moduleId, event.data.progress);  
+                    break;  
+                case 'LOAD_MODULE':  
+                    console.log('Loading module:', event.data.moduleId);  
+                    loadUnityModule(event.data.moduleId);  
+                    break;  
+                case 'RETURN_TO_HUB':  
+                    console.log('Returning to hub');  
+                    currentOrigin = HUB_ORIGIN;  
+                    document.getElementById('game-frame').src = HUB_ORIGIN;  
+                    break;  
+                default:  
+                    console.log('Unknown message type:', event.data.type);  
+            }  
+        });  
 
-        document.addEventListener('DOMContentLoaded', () => {
-            console.log('DOM content loaded, initializing...');
-            initializeGame();
-
-            const logoutButton = document.getElementById('logout-button');
-            if (logoutButton) {
-                logoutButton.addEventListener('click', logout);
-            } else {
-                console.error('Logout button not found');
-            }
-        });
-
-        window.addEventListener('message', (event) => {
-            if (event.origin !== currentOrigin) {
-                console.log('Received message from unexpected origin:', event.origin);
-                return;
-            }
-            
-            console.log('Received message from game frame:', event.data);
-            switch (event.data.type) {
-                case 'GET_TOKEN':
-                    const token = getToken();
-                    console.log('Game requested token, sending');
-                    sendTokenToGame(token);
-                    break;
-                case 'REFRESH_TOKEN':
-                    refreshToken().then(newToken => {
-                        if (newToken) {
-                            sendTokenToGame(newToken);
-                        } else {
-                            console.error('Token refresh failed');
-                        }
-                    });
-                    break;
-                case 'PROGRESS_UPDATED':
-                    console.log('Progress updated:', event.data);
-                    handleProgressUpdate(event.data.moduleId, event.data.progress);
-                    break;
-                case 'LOAD_MODULE':
-                    console.log('Loading module:', event.data.moduleId);
-                    loadUnityModule(event.data.moduleId);
-                    break;
-                case 'RETURN_TO_HUB':
-                    console.log('Returning to hub');
-                    currentOrigin = HUB_ORIGIN;document.getElementById('game-frame').src = HUB_ORIGIN;
-                    break;
-                default:
-                    console.log('Unknown message type:', event.data.type);
-            }
-        });
-
-        // Expose for debugging
-        window.debugGame = {
-            getToken,
-            setToken,
-            removeToken,
-            validateToken,
-            refreshToken,
-            initializeGame,
-            sendTokenToGame,
-            loadUnityModule
-        };
+        // Expose for debugging  
+        window.debugGame = {  
+            getToken,  
+            setToken,  
+            removeToken,  
+            validateToken,  
+            refreshToken,  
+            initializeGame,  
+            sendTokenToGame,  
+            loadUnityModule  
+        };  
     </script>
 </body>
 </html>
