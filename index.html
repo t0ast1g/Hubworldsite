@@ -187,7 +187,6 @@
                 token = getToken();  
                 if (!token) {  
                     console.log('No token found, redirecting to login');  
-                    window.location.href = LOGIN_URL;  
                     return;  
                 }  
             }  
@@ -196,7 +195,6 @@
                 const isValid = await validateToken(token);  
                 if (!isValid) {  
                     console.log('Token validation failed, redirecting to login');  
-                    window.location.href = LOGIN_URL;  
                     return;  
                 }  
 
@@ -212,7 +210,6 @@
                 }, 30 * 60 * 1000); // Refresh every 30 minutes  
             } catch (error) {  
                 console.error('Initialization error:', error);  
-                window.location.href = LOGIN_URL;  
             }  
         }  
 
